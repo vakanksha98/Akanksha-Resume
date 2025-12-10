@@ -67,7 +67,8 @@ jobs:
           cp "$GITHUB_WORKSPACE/.nojekyll" "$ART"/.nojekyll || true
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v1
+        # Use v2 of the pages artifact action (avoids deprecated artifact action)
+        uses: actions/upload-pages-artifact@v2
         with:
           path: ${{ steps.artifact.outputs.path }}
 
