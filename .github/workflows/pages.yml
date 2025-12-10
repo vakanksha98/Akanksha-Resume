@@ -1,0 +1,75 @@
+name: Build and deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check for package.json
+        id: checks
+        run: |
+          if [ -f package.json ]; then
+            echo "has_package_json=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_package_json=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Node (only if package.json found)
+        if: steps.checks.outputs.has_package_json == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install & build (only if package.json found)
+        if: steps.checks.outputs.has_package_json == 'true'
+        run: |
+          npm ci
+          npm run build --if-present
+
+      - name: Detect artifact path
+        id: artifact
+        run: |
+          # Prefer dist (Vite) then other common folders
+          for d in dist public build _site; do
+            if [ -d "$d" ]; then
+              echo "path=$d" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          done
+          # Fallback to repo root
+          echo "path=." >> $GITHUB_OUTPUT
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v3
+
+      - name: Create .nojekyll (prevent Jekyll processing)
+        run: |
+          touch $GITHUB_WORKSPACE/.nojekyll
+
+      - name: Ensure .nojekyll is inside artifact path
+        run: |
+          ART="${{ steps.artifact.outputs.path }}"
+          mkdir -p "$ART"
+          cp "$GITHUB_WORKSPACE/.nojekyll" "$ART"/.nojekyll || true
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: ${{ steps.artifact.outputs.path }}
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
